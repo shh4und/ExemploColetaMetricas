@@ -2,88 +2,91 @@ package br.ufs.dcomp.metrics;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.util.List;
 import oshi.SystemInfo;
-import oshi.hardware.*;
+import oshi.hardware.CentralProcessor;
+import oshi.hardware.GlobalMemory;
+import oshi.hardware.HWDiskStore;
+import oshi.hardware.HardwareAbstractionLayer;
+import oshi.hardware.NetworkIF;
 import oshi.software.os.FileSystem;
 import oshi.software.os.OSFileStore;
 import oshi.software.os.OperatingSystem;
 
-import java.util.List;
-
 public class MetricsApp {
-    public static void main(String[] args) {
-        SystemInfo si = new SystemInfo();
-        HardwareAbstractionLayer hal = si.getHardware();
-        OperatingSystem os = si.getOperatingSystem();
+  public static void main(String[] args) {
+    SystemInfo si = new SystemInfo();
+    HardwareAbstractionLayer hal = si.getHardware();
+    OperatingSystem os = si.getOperatingSystem();
 
-        Metrics metrics = new Metrics();
+    Metrics metrics = new Metrics();
 
-        // CPU
-        CentralProcessor cpu = hal.getProcessor();
-        CentralProcessor.ProcessorIdentifier pid = cpu.getProcessorIdentifier();
-        metrics.cpu.model = pid.getName();
-        metrics.cpu.logicalProcessorCount = cpu.getLogicalProcessorCount();
-        metrics.cpu.physicalPackageCount = cpu.getPhysicalPackageCount();
+    // CPU
+    CentralProcessor cpu = hal.getProcessor();
+    CentralProcessor.ProcessorIdentifier pid = cpu.getProcessorIdentifier();
+    metrics.cpu.model = pid.getName();
+    metrics.cpu.logicalProcessorCount = cpu.getLogicalProcessorCount();
+    metrics.cpu.physicalPackageCount = cpu.getPhysicalPackageCount();
 
-        // Nova forma de medir uso de CPU (precisa de duas leituras)
-        long[] prevTicks = cpu.getSystemCpuLoadTicks();
-        try {
-            Thread.sleep(500); // intervalo curto para amostragem
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        metrics.cpu.systemLoad = cpu.getSystemCpuLoadBetweenTicks(prevTicks) * 100.0;
-
-        // Memória
-        GlobalMemory memory = hal.getMemory();
-        metrics.memory.total = memory.getTotal();
-        metrics.memory.available = memory.getAvailable();
-        metrics.memory.used = metrics.memory.total - metrics.memory.available;
-
-        // Discos
-        List<HWDiskStore> diskStores = hal.getDiskStores();
-        for (HWDiskStore ds : diskStores) {
-            Metrics.Disk d = new Metrics.Disk();
-            d.name = ds.getName();
-            d.model = ds.getModel();
-            d.size = ds.getSize();
-            d.reads = ds.getReads();
-            d.writes = ds.getWrites();
-            metrics.disks.add(d);
-        }
-
-        // File system
-        FileSystem fs = os.getFileSystem();
-        for (OSFileStore fsStore : fs.getFileStores()) {
-            Metrics.Mount m = new Metrics.Mount();
-            m.name = fsStore.getName();
-            m.mountPoint = fsStore.getMount();
-            m.totalSpace = fsStore.getTotalSpace();
-            m.freeSpace = fsStore.getUsableSpace();
-            metrics.mounts.add(m);
-        }
-
-        // Interfaces de rede
-        List<NetworkIF> nifs = hal.getNetworkIFs();
-        for (NetworkIF nif : nifs) {
-            Metrics.NetIf ni = new Metrics.NetIf();
-            ni.name = nif.getName();
-            ni.displayName = nif.getDisplayName();
-            ni.mac = nif.getMacaddr();
-            nif.updateAttributes(); // atualiza contadores RX/TX
-            ni.rxBytes = nif.getBytesRecv();
-            ni.txBytes = nif.getBytesSent();
-            metrics.netIfs.add(ni);
-        }
-
-        // Sistema operacional
-        metrics.os.family = os.getFamily();
-        metrics.os.version = os.getVersionInfo().getVersion();
-        metrics.os.name = os.getVersionInfo().getCodeName();
-
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        String json = gson.toJson(metrics);
-        byte[] buf = json.getBytes();
-        System.out.println(json);
+    // Nova forma de medir uso de CPU (precisa de duas leituras)
+    long[] prevTicks = cpu.getSystemCpuLoadTicks();
+    try {
+      Thread.sleep(500); // intervalo curto para amostragem
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
     }
+    metrics.cpu.systemLoad = cpu.getSystemCpuLoadBetweenTicks(prevTicks) * 100.0;
+
+    // Memória
+    GlobalMemory memory = hal.getMemory();
+    metrics.memory.total = memory.getTotal();
+    metrics.memory.available = memory.getAvailable();
+    metrics.memory.used = metrics.memory.total - metrics.memory.available;
+
+    // Discos
+    List<HWDiskStore> diskStores = hal.getDiskStores();
+    for (HWDiskStore ds : diskStores) {
+      Metrics.Disk d = new Metrics.Disk();
+      d.name = ds.getName();
+      d.model = ds.getModel();
+      d.size = ds.getSize();
+      d.reads = ds.getReads();
+      d.writes = ds.getWrites();
+      metrics.disks.add(d);
+    }
+
+    // File system
+    FileSystem fs = os.getFileSystem();
+    for (OSFileStore fsStore : fs.getFileStores()) {
+      Metrics.Mount m = new Metrics.Mount();
+      m.name = fsStore.getName();
+      m.mountPoint = fsStore.getMount();
+      m.totalSpace = fsStore.getTotalSpace();
+      m.freeSpace = fsStore.getUsableSpace();
+      metrics.mounts.add(m);
+    }
+
+    // Interfaces de rede
+    List<NetworkIF> nifs = hal.getNetworkIFs();
+    for (NetworkIF nif : nifs) {
+      Metrics.NetIf ni = new Metrics.NetIf();
+      ni.name = nif.getName();
+      ni.displayName = nif.getDisplayName();
+      ni.mac = nif.getMacaddr();
+      nif.updateAttributes(); // atualiza contadores RX/TX
+      ni.rxBytes = nif.getBytesRecv();
+      ni.txBytes = nif.getBytesSent();
+      metrics.netIfs.add(ni);
+    }
+
+    // Sistema operacional
+    metrics.os.family = os.getFamily();
+    metrics.os.version = os.getVersionInfo().getVersion();
+    metrics.os.name = os.getVersionInfo().getCodeName();
+
+    Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    String json = gson.toJson(metrics);
+    byte[] buf = json.getBytes();
+    System.out.println(json);
+  }
 }
