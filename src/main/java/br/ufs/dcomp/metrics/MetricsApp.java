@@ -2,6 +2,11 @@ package br.ufs.dcomp.metrics;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.util.List;
 import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
@@ -14,7 +19,12 @@ import oshi.software.os.OSFileStore;
 import oshi.software.os.OperatingSystem;
 
 public class MetricsApp {
-  public static void main(String[] args) {
+
+  private static final String HOST = "ec2-32-192-187-159.compute-1.amazonaws.com";
+  private static final int PORT = 9001;
+  private static final int TIMEOUT = 5000; // ms
+
+  public static void main(String[] args) throws IOException {
     SystemInfo si = new SystemInfo();
     HardwareAbstractionLayer hal = si.getHardware();
     OperatingSystem os = si.getOperatingSystem();
@@ -87,6 +97,27 @@ public class MetricsApp {
     Gson gson = new GsonBuilder().setPrettyPrinting().create();
     String json = gson.toJson(metrics);
     byte[] buf = json.getBytes();
-    System.out.println(json);
+
+    try (DatagramSocket udpSocket = new DatagramSocket()) {
+      udpSocket.setSoTimeout(TIMEOUT);
+      InetAddress address = InetAddress.getByName(HOST);
+
+      DatagramPacket packet = new DatagramPacket(buf, buf.length, address, PORT);
+
+      udpSocket.send(packet);
+      System.out.printf("JSON Enviado para %s:%d\n", HOST, PORT);
+      byte[] recvBuf = new byte[1024];
+      DatagramPacket recvPacket = new DatagramPacket(recvBuf, recvBuf.length);
+      try {
+        udpSocket.receive(recvPacket);
+        String reply = new String(recvPacket.getData(), 0, recvPacket.getLength(), "UTF-8");
+
+        System.out.printf(
+            "Resposta de %s:%d → %s\n",
+            recvPacket.getAddress().getHostAddress(), recvPacket.getPort(), reply);
+      } catch (SocketTimeoutException e) {
+        System.err.println("Timeout: nenhuma resposta em " + TIMEOUT + "ms");
+      }
+    }
   }
 }
